@@ -1,38 +1,76 @@
-from fastapi import FastAPI, Request
-import httpx, os
+import os
+import json
+import logging
+from flask import Flask, request
+import requests
 
-BOT = os.getenv("BOT_TOKEN")
-CHAT = os.getenv("CHAT_ID")
+app = Flask(__name__)
+logging.basicConfig(level=logging.INFO)
 
-app = FastAPI()
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")  # твій токен
+CHAT_ID        = os.getenv("CHAT_ID")         # id чату/каналу
 
-@app.get("/health")
-async def health():
-    return {"ok": True}
-
-@app.post("/tv")
-async def tv(req: Request):
+def send_telegram_message(text: str):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}
     try:
-        a = await req.json()
-    except Exception:
-        return {"ok": False, "error": "Invalid JSON"}
+        r = requests.post(url, json=payload)
+        if r.status_code != 200:
+            logging.error(f"Telegram error: {r.text}")
+    except Exception as e:
+        logging.error(f"Send TG error: {e}")
 
-    sym = a.get("sym", "-")
-    tf = a.get("tf", "-")
-    pattern = a.get("pattern", "")
-    entry = a.get("entry", "")
-    sl = a.get("sl", "")
-    tp = a.get("tp", "")
-    rr = a.get("rr", "")
-    session = a.get("session", "")
-    note = a.get("note", "")
+@app.route("/", methods=["POST"])
+def webhook():
+    try:
+        data = request.get_data(as_text=True)
+        logging.info(f"Raw data: {data}")
+        j = json.loads(data)
 
-    text = (f"🔔 {sym} {tf} | {pattern}\n"
-            f"Entry: {entry}  SL:{sl}  TP:{tp}  RR:{rr}\n"
-            f"Session: {session}\nNote: {note}")
+        sym   = j.get("sym","?")
+        tf    = j.get("tf","?")
+        patt  = j.get("pattern","?")
+        side  = j.get("side","?")
+        entry = j.get("entry","?")
+        sl    = j.get("sl","?")
+        tp    = j.get("tp","?")
+        rr    = j.get("rr","?")
+        poi   = j.get("poi","?")
+        bias  = j.get("htf_bias","?")
+        asia  = j.get("asia","?")
+        smt   = j.get("smt","?")
+        news  = j.get("news","?")
+        sess  = j.get("session","?")
+        note  = j.get("note","")
 
-    async with httpx.AsyncClient(timeout=15) as x:
-        await x.post(f"https://api.telegram.org/bot{BOT}/sendMessage",
-                     json={"chat_id": CHAT, "text": text})
+        msg = (
+            f"📊 <b>SMC Signal</b>\n"
+            f"──────────────\n"
+            f"🔹 <b>Instrument:</b> {sym}  ({tf})\n"
+            f"🔹 <b>Side:</b> {side}\n"
+            f"🔹 <b>Pattern:</b> {patt}\n"
+            f"🔹 <b>POI (H1):</b> {poi}\n"
+            f"🔹 <b>HTF bias (D1):</b> {bias}\n"
+            f"──────────────\n"
+            f"🎯 <b>Entry:</b> {entry}\n"
+            f"❌ <b>SL:</b> {sl}\n"
+            f"✅ <b>TP:</b> {tp}\n"
+            f"⚖️ <b>RR:</b> {rr}\n"
+            f"──────────────\n"
+            f"⏰ <b>Session:</b> {sess}\n"
+            f"🌏 <b>Asia:</b> {asia}\n"
+            f"📈 <b>SMT:</b> {smt}\n"
+            f"📰 <b>News:</b> {news}\n"
+            f"──────────────\n"
+            f"{note}"
+        )
 
-    return {"ok": True}
+        send_telegram_message(msg)
+        return "ok", 200
+
+    except Exception as e:
+        logging.error(f"Webhook error: {e}")
+        return "error", 500
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
