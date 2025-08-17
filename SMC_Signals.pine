@@ -1,0 +1,25 @@
+
+//@version=5
+indicator("SMC Signals (EURUSD/GBPUSD/XAUUSD)", overlay=true)
+
+allow = syminfo.ticker in ["EURUSD","GBPUSD","XAUUSD"]
+
+// Сесії (Warsaw)
+locTime = input.session("0900-1900", "Active Window (Warsaw)")
+inSession = time(timeframe.period, locTime, "Europe/Warsaw"
+
+// Патерн (поки що демо)
+var string patt = na
+patt := allow and inSession ? "QM" : na
+
+sl = allow and inSession ? close * 0.998 : na
+tp = allow and inSession ? close * 1.004 : na
+rr = allow and inSession ? 2.0 : na
+
+plotshape(allow and inSession, title="Signal", style=shape.triangleup,
+          location=location.belowbar, size=size.tiny, color=color.new(color.green, 0))
+
+if barstate.isconfirmed and allow and not na(patt)
+    msg = str.format('{{"sym":"{0}","tf":"{1}","pattern":"{2}","entry":{3},"sl":{4},"tp":{5},"rr":{6},"session":"{7}","note":"SMC test"}}',
+        syminfo.ticker, timeframe.period, patt, close, sl, tp, rr, inSession ? "LOKZ/NYKZ" : "other")
+    alert(msg, alert.freq_once_per_bar_close)
